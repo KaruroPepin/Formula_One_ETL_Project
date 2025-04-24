@@ -4,6 +4,20 @@
 
 # COMMAND ----------
 
+dbutils.widgets.text("p_data_source", "")
+v_data_source = dbutils.widgets.get("p_data_source")
+
+# COMMAND ----------
+
+# MAGIC %run "../includes/configuration"
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %run "../includes/common_functions"
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ##### Step 1 - Read the CSV file using the spark dataframe reader API
 
@@ -25,7 +39,7 @@ lap_times_schema = StructType(fields=[StructField("raceId", IntegerType(), False
 
 lap_times_df = spark.read \
 .schema(lap_times_schema) \
-.csv("abfss://raw@dformulaone.dfs.core.windows.net/lap_times")
+.csv(f"{raw_folder_path}/lap_times")
 
 # COMMAND ----------
 
@@ -36,13 +50,17 @@ lap_times_df = spark.read \
 
 # COMMAND ----------
 
-from pyspark.sql.functions import current_timestamp
+from pyspark.sql.functions import current_timestamp, lit
 
 # COMMAND ----------
 
-final_df = lap_times_df.withColumnRenamed("driverId", "driver_id") \
+final_renamed_df = lap_times_df.withColumnRenamed("driverId", "driver_id") \
 .withColumnRenamed("raceId", "race_id") \
-.withColumn("ingestion_date", current_timestamp())
+    .withColumn("data_source", lit(v_data_source))
+
+# COMMAND ----------
+
+final_df = add_ingestion_date(final_renamed_df)
 
 # COMMAND ----------
 
@@ -52,3 +70,12 @@ final_df = lap_times_df.withColumnRenamed("driverId", "driver_id") \
 # COMMAND ----------
 
 final_df.write.mode("overwrite").parquet("abfss://processed@dformulaone.dfs.core.windows.net/lap_times")
+
+# COMMAND ----------
+
+# df = spark.read.parquet(f"{processed_folder_path}/lap_times")
+# display(df, truncate=False)
+
+# COMMAND ----------
+
+dbutils.notebook.exit("Success")

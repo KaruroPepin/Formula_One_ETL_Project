@@ -4,6 +4,20 @@
 
 # COMMAND ----------
 
+dbutils.widgets.text("p_data_source", "")
+v_data_source = dbutils.widgets.get("p_data_source")
+
+# COMMAND ----------
+
+# MAGIC %run "../includes/configuration"
+# MAGIC
+
+# COMMAND ----------
+
+# MAGIC %run "../includes/common_functions"
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ##### Step 1 - Read the JSON file using the spark dataframe reader API
 
@@ -34,7 +48,7 @@ drivers_schema = StructType(fields=[StructField("driverId", IntegerType(), False
 
 drivers_df = spark.read \
 .schema(drivers_schema) \
-.json("abfss://raw@dformulaone.dfs.core.windows.net/drivers.json")
+.json(f"{raw_folder_path}/drivers.json")
 
 # COMMAND ----------
 
@@ -51,10 +65,15 @@ from pyspark.sql.functions import col, concat, current_timestamp, lit
 
 # COMMAND ----------
 
-drivers_with_columns_df = drivers_df.withColumnRenamed("driverId", "driver_id") \
-                                    .withColumnRenamed("driverRef", "driver_ref") \
-                                    .withColumn("ingestion_date", current_timestamp()) \
-                                    .withColumn("name", concat(col("name.forename"), lit(" "), col("name.surname")))
+drivers_rename_df = drivers_df \
+    .withColumnRenamed("driverId", "driver_id") \
+    .withColumnRenamed("driverRef", "driver_ref") \
+    .withColumn("name", concat(col("name.forename"), lit(" "), col("name.surname"))) \
+    .withColumn("data_source", lit(v_data_source))
+
+# COMMAND ----------
+
+drivers_with_columns_df = add_ingestion_date(drivers_rename_df)
 
 # COMMAND ----------
 
@@ -75,9 +94,13 @@ drivers_final_df = drivers_with_columns_df.drop(col("url"))
 
 # COMMAND ----------
 
-drivers_final_df.write.mode("overwrite").parquet("abfss://processed@dformulaone.dfs.core.windows.net/drivers")
+drivers_final_df.write.mode("overwrite").parquet(f"{processed_folder_path}/drivers")
 
 # COMMAND ----------
 
 # df = spark.read.parquet("abfss://processed@dformulaone.dfs.core.windows.net/drivers")
 # display(df, truncate=False)
+
+# COMMAND ----------
+
+dbutils.notebook.exit("Success")

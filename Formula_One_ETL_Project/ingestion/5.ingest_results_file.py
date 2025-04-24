@@ -4,6 +4,19 @@
 
 # COMMAND ----------
 
+dbutils.widgets.text("p_data_source", "")
+v_data_source = dbutils.widgets.get("p_data_source")
+
+# COMMAND ----------
+
+# MAGIC %run "../includes/configuration"
+
+# COMMAND ----------
+
+# MAGIC %run "../includes/common_functions"
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ##### Step 1 - Read the JSON file using the spark dataframe reader API
 
@@ -36,7 +49,7 @@ results_schema = StructType(fields=[StructField("resultId", IntegerType(), False
 
 results_df = spark.read \
 .schema(results_schema) \
-.json("abfss://raw@dformulaone.dfs.core.windows.net/results.json")
+.json(f"{raw_folder_path}/results.json")
 
 # COMMAND ----------
 
@@ -45,11 +58,11 @@ results_df = spark.read \
 
 # COMMAND ----------
 
-from pyspark.sql.functions import current_timestamp
+from pyspark.sql.functions import current_timestamp, lit
 
 # COMMAND ----------
 
-results_with_columns_df = results_df.withColumnRenamed("resultId", "result_id") \
+results_renamed_df = results_df.withColumnRenamed("resultId", "result_id") \
                                     .withColumnRenamed("raceId", "race_id") \
                                     .withColumnRenamed("driverId", "driver_id") \
                                     .withColumnRenamed("constructorId", "constructor_id") \
@@ -58,7 +71,11 @@ results_with_columns_df = results_df.withColumnRenamed("resultId", "result_id") 
                                     .withColumnRenamed("fastestLap", "fastest_lap") \
                                     .withColumnRenamed("fastestLapTime", "fastest_lap_time") \
                                     .withColumnRenamed("fastestLapSpeed", "fastest_lap_speed") \
-                                    .withColumn("ingestion_date", current_timestamp()) 
+    .withColumn("data_source", lit(v_data_source))
+
+# COMMAND ----------
+
+results_with_columns_df = add_ingestion_date(results_renamed_df)
 
 # COMMAND ----------
 
@@ -80,9 +97,13 @@ results_final_df = results_with_columns_df.drop(col("statusId"))
 
 # COMMAND ----------
 
-results_final_df.write.mode("overwrite").partitionBy('race_id').parquet("abfss://processed@dformulaone.dfs.core.windows.net/results")
+results_final_df.write.mode("overwrite").partitionBy('race_id').parquet(f"{processed_folder_path}/results")
 
 # COMMAND ----------
 
-# df = spark.read.parquet("abfss://processed@dformulaone.dfs.core.windows.net/results")
-# display(df, truncate=False)
+df = spark.read.parquet("abfss://processed@dformulaone.dfs.core.windows.net/results")
+display(df, truncate=False)
+
+# COMMAND ----------
+
+dbutils.notebook.exit("Success")
